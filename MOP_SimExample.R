@@ -1,50 +1,56 @@
 
 ## ------ IMPORT REQUIRED LIBRARIES ------
-.libPaths(c("C:/Rfolder", .libPaths())) 
 
 library(nimble)                    
 library(R.utils)                   
-library(coda)
 
 ## ------ Source FUNCTIONS ------
-sourceDirectory("~/PROJECTS/OpenRepo/FUN/",modifiedOnly=FALSE) 
+sourceDirectory("~/OpenRepo/FUN/", modifiedOnly = FALSE) 
 
-## ------ DEFINED INPUT DIRECTORY ------
-path.in <- "~/PROJECTS/OpenRepo/NIMIN/"
-path.proc <- "~/PROJECTS/OpenRepo/NIMPROC/"
-path.out <- "~/PROJECTS/OpenRepo/NIMOUT/"
+## ------ DEFINE INPUT DIRECTORY ------
+path.in <- "~/OpenRepo/NIMIN/"
+path.proc <- "~/OpenRepo/NIMPROC/"
+path.out <- "~/OpenRepo/NIMOUT/"
 
 file.list <- list.files(path.in)
 
-## LOOP OVER INPUT FILES
+## ------------------------------------------------------------------------------------------------------------------ I.LOAD DATA -----  
+
+  ##--Loop over input files
 while(length(file.list)>0){
   
-  # Sample one file at random
+  ##--Sample one file at random
   set <- sample(file.list, 1)
   
-  # Load the sampled data
+  ##--Load the sampled data
   load(paste(path.in, set, sep=""))
   print(set)
   file.rename(from = paste(path.in, set, sep = ""), to = paste(path.proc, set, sep = "")) 
   
-  nimble.model <- nimbleModel(code = mod
+## ------------------------------------------------------------------------------------------------------------------ II.MODEL RUNS ----- 
+  
+  ### ==== 1.MODEL BUILDING  ====
+  nimble.model <- nimbleModel(  code = mod
                               , constants = constants
                               , data = data
                               , inits = inits
                               , check = FALSE)
   
-  ### ==== 4.MODEL COMPILATION  ====
-  Sys.setenv(PATH = paste("C:/Rfolder/Rtools/bin", Sys.getenv("PATH"), sep=";"))
-  Sys.setenv(BINPREF = "C:/Rfolder/Rtools/mingw_$(WIN)/bin/")
   
+  ### ==== 2.MODEL COMPILATION  ====
   Cmodel <- compileNimble(nimble.model)
-  mcmcSCR <- configureMCMC(nimble.model, monitors = params.mod)
-  SCRMCMC <- buildMCMC(mcmcSCR)
-  CompSCRMCMC <- compileNimble(SCRMCMC, project = nimble.model)
   
-  samplesList <- runMCMC(CompSCRMCMC
+  ### ==== 3.MCMC CONFIGURATION ====
+  mcmcConf <- configureMCMC(nimble.model, monitors = params.mod)
+  MCMC <- buildMCMC(mcmcConf)
+  
+  ### ==== 4.MCMC COMPLIATION ====
+  cMCMC <- compileNimble(MCMC, project = nimble.model)
+  
+  ### ==== 5.MCMC SAMPLING ====
+  samplesList <- runMCMC(cMCMC
                          , niter = 5000
-                         , nburnin = 2000
+                         , nburnin = 200
                          , nchains = 3
                          , samplesAsCodaMCMC = TRUE)
   
@@ -54,8 +60,7 @@ while(length(file.list)>0){
   file.list <- list.files(path.in)
 }
 
-## -------------------------------------------------------------------------------------------------------------
-## ----- VII.PROCESS THE OUTPUT -----  
+## ------------------------------------------------------------------------------------------------------------------ III.PROCESS THE OUTPUT -----  
 par(mfrow=c(1,2))
 
 col.list <- adjustcolor(rev(c("darkblue","lightblue","turquoise","red")), alpha = 0.8)
