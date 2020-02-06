@@ -49,8 +49,8 @@ while(length(file.list)>0){
   
   ### ==== 5.MCMC SAMPLING ====
   samplesList <- runMCMC(cMCMC
-                         , niter = 5000
-                         , nburnin = 200
+                         , niter = 10000
+                         , nburnin = 1
                          , nchains = 3
                          , samplesAsCodaMCMC = TRUE)
   
