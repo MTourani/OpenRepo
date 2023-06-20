@@ -1,4 +1,6 @@
 
+library(nimble)
+library(coda)
 
 nmodel <- nimbleCode( { 
   
@@ -111,3 +113,65 @@ nmodel <- nimbleCode( {
   
 
 })
+
+### ==== 1.MODEL BUILDING  ====
+model <- nimbleModel(      code      = nmodel
+                         , constants = constants
+                         , data      = ndata
+                         , inits     = ninits
+                         , check     = FALSE
+                         , calculate = FALSE)
+
+
+### ==== 2.MODEL COMPILATION  ====
+Cmodel <- compileNimble(model)
+
+### ==== 3.MCMC CONFIGURATION ====
+mcmcConf <- configureMCMC(model, monitors = params)
+MCMC <- buildMCMC(mcmcConf)
+
+### ==== 4.MCMC COMPLIATION ====
+cMCMC <- compileNimble(MCMC, project = model)
+
+### ==== 5.MCMC SAMPLING ====
+samplesList <- runMCMC(    cMCMC
+                         , niter   = 1000
+                         , nburnin = 1
+                         , nchains = 1
+                         , samplesAsCodaMCMC = TRUE)
+psamples <- do.call(rbind, samplesList)
+
+### ==== 6.Simulate new values from the posterior ====
+sim <- simulateFromPosterior( model = model, nodes = dimnames(psamples)[[2]])
+csim <- compileNimble(sim, project = cmodel$compiledModel, resetFunctions = TRUE)
+first <- dim(samplesList[[1]])[1] - (dim(samplesList[[1]])[1] * 0.5) + 1
+last  <- dim(samplesList[[1]])[1]
+# Because using all samples will be slow and requires lots of memory
+pnout <- do.call(rbind, lapply(samplesList, function(x) x[first:last,]))
+csim$run(pnout)
+
+### ==== 7.Calculate discrepancy between observed and expected values ====
+bp <- 1:dim(ndata$y)[2]
+e <- 0.0001
+fit_y         <- matrix(NA, length(csim$mv[["y"]][[1]]), dim(ndata$y)[2])
+fit_y_new     <- matrix(NA, length(csim$mv[["y"]][[1]]), dim(ndata$y)[2])
+fit_agg_y     <- array(NA, dim = c(length(csim$mv[["y"]][[1]]), dim(ndata$y)[2], dim(ndata$y)[1]))
+fit_agg_y_new <- array(NA, dim = c(length(csim$mv[["y"]][[1]]), dim(ndata$y)[2], dim(ndata$y)[1]))
+
+for (i in 1:dim(ndata$y)[2]) {
+  for (j in 1:length(csim$mv[["y"]][[1]])) {
+    E_agg <- sum(csim$mv[["p"]][[j]][, i, drop = FALSE] * csim$mv[["z"]][[j]][1:max(constants$nsite), i, drop = FALSE], na.rm = TRUE)
+    fit_agg_y[j, i, ]     <- (ndata$y[,i] - E_agg)^2 / (E_agg + e)
+    fit_agg_y_new[j, i, ] <- (csim$mv[["y"]][[j]][, i] - E_agg)^2 / (E_agg + e)
+    fit_y[j, i]       <- sum(fit_agg_y[j, i, ])
+    fit_y_new[j, i]   <- sum(fit_agg_y_new[j, i, ])
+  }
+}
+
+for (k in 1:dim(ndata$y)[2]) {
+  bp[k] <- mean(fit_y[,k] > fit_y_new[,k])
+}
+
+BP <- mean(apply(fit_y, 1, sum) > apply(fit_y_new, 1, sum))
+
+
