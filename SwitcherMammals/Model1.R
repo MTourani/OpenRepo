@@ -39,7 +39,7 @@ nmodel <- nimbleCode( {
     
     for (m in 1:nhex[k]) {
       
-      cint.betaLc[m, k] ~ dnorm(0, sd =  sd.betalpsiLc[k])
+      cint.betaFor[m, k] ~ dnorm(0, sd =  sd.betalpsiFor[k])
       
       
     }
@@ -57,8 +57,8 @@ nmodel <- nimbleCode( {
     betalpsi1[k] <- 0
     betalpsiYr[k] ~ dnorm(mu.betalpsiYr, sd = sd.betalpsiYr)
 
-    mu.betalpsiLc[k] ~ dnorm(mu.mubeta, sd = sd.mubeta)  
-    sd.betalpsiLc[k] ~ dgamma(a.sdbeta, b.sdbeta)
+    mu.betalpsiFor[k] ~ dnorm(mu.mubeta, sd = sd.mubeta)  
+    sd.betalpsiFor[k] ~ dgamma(a.sdbeta, b.sdbeta)
     
     
   }
@@ -83,11 +83,9 @@ nmodel <- nimbleCode( {
     for (i in 1:nsite[k]) {
       
       # Species level hex-specific covariate effects
-      betaLc[i, k] <- mu.betalpsiLc[k] + cint.betaLc[hs[i, k], k]
+      betaFor[i, k] <- mu.betalpsiFor[k] + cint.betaFor[hs[i, k], k]
       
-      logit(psi[i, k]) <- lpsi[k] + betalpsiYr[k] * Xyear[siteID[i, k], 2] 
-                                  + betaLc[i, k] * Lc[siteID[i, k], 1] 
-                                  + cint.psi[ms[i, k], k] 
+      logit(psi[i, k]) <- lpsi[k] + betalpsiYr[k]*Xyear[siteID[i, k], 2] + betaFor[i, k]*lc[siteID[i, k], 2] + cint.psi[ms[i, k], k] 
       
       
       z[i, k] ~ dbern(psi[i, k])
@@ -127,7 +125,7 @@ model <- nimbleModel(    code      = nmodel
 Cmodel <- compileNimble(model)
 
 ### ==== 3.MCMC CONFIGURATION ====
-mcmcConf <- configureMCMC(model, monitors = params)
+mcmcConf <- configureMCMC(model, monitors =  c("mu.lpsi", "sd.lpsi", "mu.lp", "sd.lp", "sd.betalpsiFor", "mu.betalpsiFor"))
 MCMC <- buildMCMC(mcmcConf)
 
 ### ==== 4.MCMC COMPLIATION ====
@@ -135,7 +133,7 @@ cMCMC <- compileNimble(MCMC, project = model)
 
 ### ==== 5.MCMC SAMPLING ====
 samplesList <- runMCMC(  cMCMC
-                       , niter   = 1000
+                       , niter   = 50
                        , nburnin = 1
                        , nchains = 1
                        , samplesAsCodaMCMC = TRUE)
@@ -160,9 +158,9 @@ fit_agg_y_new <- array(NA, dim = c(length(csim$mv[["y"]][[1]]), dim(ndata$y)[2],
 
 for (i in 1:dim(ndata$y)[2]) {
   for (j in 1:length(csim$mv[["y"]][[1]])) {
-    E_agg <- sum(csim$mv[["p"]][[j]][, i, drop = FALSE] * csim$mv[["z"]][[j]][1:max(constants$nsite), i, drop = FALSE], na.rm = TRUE)
-    fit_agg_y[j, i, ]     <- (ndata$y[,i] - E_agg)^2 / (E_agg + e)
-    fit_agg_y_new[j, i, ] <- (csim$mv[["y"]][[j]][, i] - E_agg)^2 / (E_agg + e)
+    e_agg <- sum(csim$mv[["p"]][[j]][, i, drop = FALSE] * csim$mv[["z"]][[j]][1:max(constants$nsite), i, drop = FALSE], na.rm = TRUE)
+    fit_agg_y[j, i, ]     <- (ndata$y[,i] - e_agg)^2 / (e_agg + e)
+    fit_agg_y_new[j, i, ] <- (csim$mv[["y"]][[j]][, i] - e_agg)^2 / (e_agg + e)
     fit_y[j, i]       <- sum(fit_agg_y[j, i, ])
     fit_y_new[j, i]   <- sum(fit_agg_y_new[j, i, ])
   }

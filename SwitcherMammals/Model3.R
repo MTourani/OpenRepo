@@ -58,7 +58,7 @@ nmodel <- nimbleCode( {
     
     betalpsi1[k] <- 0
     betalpsiYr[k] ~ dnorm(mu.betalpsiYr, sd = sd.betalpsiYr)
-    betalpsiLc[k] ~ dnorm(mu.betalpsiLc, sd = sd.betalpsiLc)
+    betalpsiFor[k] ~ dnorm(mu.betalpsiFor, sd = sd.betalpsiFor)
     betalpsiClim[k] ~ dnorm(mu.betalpsiClim, sd = sd.betalpsiClim)
     betalpsiICL[k] ~ dnorm(mu.betalpsiICL, sd = sd.betalpsiICL)
   }
@@ -68,8 +68,8 @@ nmodel <- nimbleCode( {
   mu.betalpsiYr ~ dnorm(0, 0.001)    # year effect
   sd.betalpsiYr ~ dunif(0, 10)
   
-  mu.betalpsiLc ~ dnorm(0, 0.001)   # LC effect
-  sd.betalpsiLc ~ dunif(0, 10)
+  mu.betalpsiFor ~ dnorm(0, 0.001)   # LC effect
+  sd.betalpsiFor ~ dunif(0, 10)
   
   mu.betalpsiClim ~ dnorm(0, 0.001)  # Clim effect
   sd.betalpsiClim ~ dunif(0, 10)
@@ -96,14 +96,14 @@ nmodel <- nimbleCode( {
         
         # Species-level fixed effects
         betalpsiYr[k] * Xyear[siteID[i, k], 2] +
-        betalpsiLc[k] * lc[siteID[i, k], 2] +
+        betalpsiFor[k] * lc[siteID[i, k], 2] +
         betalpsiClim[k] * clim[siteID[i, k], 3] + 
         betalpsiICL[k] * lc[siteID[i, k], 2] * clim[siteID[i, k], 3] +
         # Community-level fixed effects
-        betalpsiTrait * trait[k, 2] + 
-        betalpsiICT * clim[siteID[i, k], 3] * trait[k, 2]  +
-        betalpsiILT * lc[siteID[i, k], 2] * trait[k, 2] +
-        betalpsiICLT * lc[siteID[i, k], 2] * clim[siteID[i, k], 3] * trait[k, 2] +
+        betalpsiTrait * trait[k, 1] + 
+        betalpsiICT * clim[siteID[i, k], 3] * trait[k, 1]  +
+        betalpsiILT * lc[siteID[i, k], 2] * trait[k, 1] +
+        betalpsiICLT * lc[siteID[i, k], 2] * clim[siteID[i, k], 3] * trait[k, 1] +
         # Species-level random effects
         cint.psi[hs[i, k], k]  
       
@@ -145,7 +145,7 @@ model <- nimbleModel(      code      = nmodel
 Cmodel <- compileNimble(model)
 
 ### ==== 3.MCMC CONFIGURATION ====
-mcmcConf <- configureMCMC(model, monitors = params)
+mcmcConf <- configureMCMC(model, monitors = c("betalpsiICLT"))
 MCMC <- buildMCMC(mcmcConf)
 
 ### ==== 4.MCMC COMPLIATION ====
@@ -178,9 +178,9 @@ fit_agg_y_new <- array(NA, dim = c(length(csim$mv[["y"]][[1]]), dim(ndata$y)[2],
 
 for (i in 1:dim(ndata$y)[2]) {
   for (j in 1:length(csim$mv[["y"]][[1]])) {
-    E_agg <- sum(csim$mv[["p"]][[j]][, i, drop = FALSE] * csim$mv[["z"]][[j]][1:max(constants$nsite), i, drop = FALSE], na.rm = TRUE)
-    fit_agg_y[j, i, ]     <- (ndata$y[,i] - E_agg)^2 / (E_agg + e)
-    fit_agg_y_new[j, i, ] <- (csim$mv[["y"]][[j]][, i] - E_agg)^2 / (E_agg + e)
+    e_agg <- sum(csim$mv[["p"]][[j]][, i, drop = FALSE] * csim$mv[["z"]][[j]][1:max(constants$nsite), i, drop = FALSE], na.rm = TRUE)
+    fit_agg_y[j, i, ]     <- (ndata$y[,i] - e_agg)^2 / (e_agg + e)
+    fit_agg_y_new[j, i, ] <- (csim$mv[["y"]][[j]][, i] - e_agg)^2 / (e_agg + e)
     fit_y[j, i]       <- sum(fit_agg_y[j, i, ])
     fit_y_new[j, i]   <- sum(fit_agg_y_new[j, i, ])
   }
